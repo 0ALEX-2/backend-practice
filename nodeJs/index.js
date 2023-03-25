@@ -32,6 +32,8 @@
 import express from "express";
 import path from "path";
 import mongoose from "mongoose";
+import cookieParser from "cookie-parser";
+import jwt from "jsonwebtoken"
 
 const app = express();
 mongoose
@@ -41,16 +43,14 @@ mongoose
   .then(() => console.log("Database connected"))
   .catch((err) => console.log(err));
 
-  //Creating Schema
-  const messageSchma=new mongoose.Schema({
-    name:String,
-    email:String 
-  })
+//Creating Schema
+const userSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+});
 
-  //Creating Model
-const Message=mongoose.model("Message",messageSchma)
-
-
+//Creating Model
+const User = mongoose.model("User", userSchema);
 
 // app.get("/",(req,res)=>{
 //     res.send("Hello")
@@ -74,43 +74,55 @@ const Message=mongoose.model("Message",messageSchma)
 //Using middlewares
 app.use(express.static(path.join(path.resolve(), "public")));
 app.use(express.urlencoded({ extended: true }));
-
-
+app.use(cookieParser());
 
 app.set("view engine", "ejs");
 
-app.get("/", (req, res) => {
-  res.render("index", { name: "Sahani" });
+const isAuthenticated = (req, res, next) => {
+  const { token } = req.cookies;
+
+  if (token) {
+    const decoded=jwt.verify(token,"asdygflawdihfo@dewf")
+    console.log(decoded);
+    next();
+  } else {
+    res.render("login");
+  }
+};
+
+app.get("/", isAuthenticated, (req, res) => {
+  res.render("logout");
 });
 
-// app.get("/add", (req, res) => {
-//     Message.create({name:"Shakil",email:"sakil@gmail.com"}).then(()=>{
-//         res.send("Nice");
-//     })
-//});
-
-app.get("/add",async(req,res)=>{
-    await Message.create({
-        name:"Sabir",
-        email:"sabir@gmail.com"
-    })
-    res.send("Data added")
-})
-
-app.get("/success", (req, res) => {
-  res.render("success");
-});
-app.get("/users", (req, res) => {
-  res.json({
-    users,
-  });
-});
-
-app.post("/contact",async(req, res) => {
+app.post("/login", async(req, res) => {
   const {name,email}=req.body 
 
-  await Message.create({name, email})
-  res.redirect("/success");
+  const user=await User.create({
+    name,email
+  })
+
+const token=jwt.sign({_id:user._id}, "asdygflawdihfo@dewf")
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    expires: new Date(Date.now() + 60 * 1000),
+  });
+  res.redirect("/");
+});
+
+app.get("/logout", (req, res) => {
+  res.cookie("token", null, {
+    expires: new Date(Date.now()),
+  });
+  res.redirect("/");
+});
+
+app.get("/add", async (req, res) => {
+  await Message.create({
+    name: "Sabir",
+    email: "sabir@gmail.com",
+  });
+  res.send("Data added");
 });
 
 app.listen(5000, () => {
